@@ -1,0 +1,96 @@
+---
+title: "Kevin"
+author: "Consensus-BAL"
+date: "6/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Load packages
+```{r}
+# install.packages('devtools')
+# devtools::install_github(repo = 'satijalab/seurat', ref = 'release/3.0')
+require(Seurat)
+require(data.table)
+require(dplyr)
+# install.packages('devtools')
+# devtools::install_github('VPetukhov/ggrastr')
+require(ggrastr)
+require(stringr)
+require(Biostrings)
+require(useful)
+# install.packages("pals")
+require(pals)
+require(ggplot2)
+```
+
+#Load Meta File
+```{r}
+meta <- read.table("classification.tsv", sep="\t", header=T)
+```
+
+#Load Dataset
+```{r}
+load("consensus_BAL.RData")
+tmp <- df
+tmp[is.na(tmp)] <- 0
+```
+
+
+#Initiate Seurat
+```{r}
+BAL  <- CreateSeuratObject(tmp, min.cells = 1, min.features = 80, 
+                                  project = "consensus_anchoring_BAL", meta.data = meta)
+```
+
+
+#Split Object
+```{r}
+BAL_list = SplitObject(BAL, split.by = "orig.ident")
+```
+
+
+#Normalization
+```{r}
+for (i in 1:length(x = BAL_list)) {
+  BAL_list[[i]] <- NormalizeData(object = BAL_list[[i]], verbose = FALSE)
+  BAL_list[[i]] <- FindVariableFeatures(object = BAL_list[[i]], 
+                                         selection.method = "vst", nfeatures = 2000, verbose = FALSE)
+}
+```
+
+
+#Find anchors across datasets
+```{r}
+BAL_list <- FindIntegrationAnchors(object.list = BAL_list, dims = 1:30)
+```
+
+
+#Data integration
+```{r}
+BAL_list <- IntegrateData(anchorset = BAL_list, dims = 1:30)
+DefaultAssay(object = BAL_list) <- "integrated"
+```
+
+
+# Dimensionality reduction
+```{r}
+BAL_list <- ScaleData(object = BAL_list, verbose = FALSE)
+BAL_list <- RunPCA(object = BAL_list, npcs = 30, verbose = FALSE)
+```
+
+
+#UMAP
+```{r}
+BAL_list <- RunUMAP(object = BAL_list, reduction = "pca", dims = 1:30)
+```
+
+
+##plot UMAP
+```{r,fig.height=9, fig.width=18}
+DimPlot(object = BAL_list, reduction = "umap", group.by = "orig.ident")
+```
